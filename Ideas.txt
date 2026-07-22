@@ -1,0 +1,89 @@
+Ideas
+
+WhatsApp/Email → Sales Order AI Parser
+Problem: Employees manually enter customer orders from WhatsApp or emails, causing errors and wasting time.
+AI Make or Buy Co-Pilot
+Problem: Managers don't know whether it's cheaper or faster to manufacture a product or purchase it from a supplier.
+Promise Date (Available-to-Promise Engine)
+Problem: Sales teams promise delivery dates without knowing if production and inventory can actually meet them.
+Production Bottleneck Predictor
+Problem: Manufacturing delays are discovered too late because overloaded work centers aren't identified in advance.
+Ask Your ERP (AI Chat)
+Problem: Business owners struggle to find information through complex dashboards and reports.
+Predictive Reorder / Demand Forecasting
+Problem: Raw materials run out unexpectedly because procurement reacts only after stock becomes low.
+Audit Log Time Machine
+Problem: It's difficult to trace who changed inventory, orders, or prices, and why those changes happened.
+BoM Cost & Margin Simulator
+Problem: Companies don't know the actual manufacturing cost or profit of a product when material prices change.
+Vendor Reliability Score
+Problem: Businesses keep ordering from unreliable suppliers because there's no way to measure supplier performance.
+⭐ Best 3 problems to solve (highest impact)
+📱 Manual order entry from WhatsApp/Email
+📦 Uncertain procurement (Buy or Manufacture?)
+🚚 Inaccurate delivery date commitments
+
+Core useful novelty features:
+
+WhatsApp/Email to Sales Order — auto-convert messy customer messages into draft orders.
+Make or Buy AI Co-Pilot — recommends whether to purchase or manufacture a shortage.
+Promise Date Engine — tells the customer the real delivery date before confirming the order.
+Bottleneck Predictor — shows which work center will get overloaded next.
+Ask Your ERP Chat — users ask questions in plain English and get answers instantly.
+Predictive Reorder System — forecasts stock needs and triggers procurement early.
+Audit Log Time Machine — shows every stock change in simple language.
+BoM Cost & Margin Simulator — calculates real product cost and profit.
+Vendor Reliability Score — ranks suppliers by speed, quality, and trust.
+
+Best 3 to implement first for maximum wow:
+
+WhatsApp/Email to Sales Order
+Make or Buy AI Co-Pilot
+Promise Date Engine
+the problem each feature solves:
+
+Shortage Radar
+Problem: Stockouts are noticed too late, after orders or production already fail.
+Why-Procurement Explainer
+Problem: Auto-created purchase orders feel unclear, so users do not trust why they were triggered.
+Inventory Digital Twin
+Problem: Teams cannot test what happens if demand spikes, suppliers delay, or capacity changes.
+Interactive Supply Chain Risk Graph
+Problem: Dependencies between products, BoM, suppliers, and work centers are hidden, so risk spreads unnoticed.
+Bottleneck Seer
+Problem: Work-center overloads are discovered only after production gets delayed.
+Auto-Schedule Optimizer
+Problem: Production orders are arranged manually, often leading to missed deadlines and poor machine use.
+Visual Stock Audits
+Problem: Inventory mismatches, damage, and missing items are hard to detect quickly in storage.
+Order Promise Engine
+Problem: Sales teams give unrealistic delivery dates without checking stock, materials, and capacity.
+Exception Inbox
+Problem: Users are overloaded with normal transactions and cannot quickly find urgent issues.
+Self-Healing Workflows
+Problem: When delays or shortages happen, the system does not automatically react or recover.
+Timeline Replay
+Problem: It is hard to understand how an issue happened over time from scattered logs.
+Factory Health Score
+Problem: Managers do not have a simple overall view of operational performance.
+Lead-Time Drift Detector
+Problem: Supplier delivery times change over time, but the system keeps using old assumptions
+
+
+| **Novelty Feature**                     | **What's Novel About It?**                                                                                                            |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| **Shortage Radar**                      | Predicts future stock shortages before they happen instead of alerting after stock is low.                                            |
+| **Why-Procurement Explainer**           | Explains in plain English *why* a purchase/manufacturing order was automatically created.                                             |
+| **Inventory Digital Twin**              | Simulates the entire factory and inventory to test "What if demand doubles?" or "What if a supplier is delayed?"                      |
+| **Interactive Supply Chain Risk Graph** | Displays products, suppliers, BoMs, and work centers as an interactive network showing how one problem affects everything else.       |
+| **Bottleneck Seer**                     | Predicts future production bottlenecks before delays occur.                                                                           |
+| **Auto-Schedule Optimizer**             | Automatically creates the best production schedule based on deadlines, machine capacity, and materials.                               |
+| **Visual Stock Audits (AI + Camera)**   | Uses images from a phone/camera to detect missing, damaged, or misplaced inventory automatically.                                     |
+| **Order Promise Engine**                | Calculates an accurate delivery date by considering inventory, suppliers, and production capacity.                                    |
+| **Exception Inbox**                     | Shows only critical issues that need attention instead of making users search through hundreds of records.                            |
+| **Self-Healing Workflow**               | Automatically reschedules production or creates alternative plans when shortages or delays occur.                                     |
+| **Timeline Replay**                     | Lets users replay every event (order → purchase → manufacturing → delivery) like a timeline to understand what happened.              |
+| **Factory Health Score**                | Gives one overall score (0–100) representing the health of the entire factory based on delays, stock, production, and pending orders. |
+| **Lead-Time Drift Detector**            | Detects when suppliers start delivering slower than usual and warns users before it impacts production.                               |
+
+

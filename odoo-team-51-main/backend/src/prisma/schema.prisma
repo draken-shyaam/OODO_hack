@@ -1,0 +1,639 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Enums ----------
+
+enum PermissionModule {
+  sales
+  purchase
+  manufacturing
+  product
+}
+
+enum ProcurementMethod {
+  purchase
+  manufacturing
+}
+
+enum Severity {
+  low
+  medium
+  high
+}
+
+enum SalesOrderStatus {
+  draft
+  confirmed
+  partially_delivered
+  fully_delivered
+  cancelled
+}
+
+enum PurchaseOrderStatus {
+  draft
+  confirmed
+  partially_received
+  fully_received
+  cancelled
+}
+
+enum ManufacturingOrderStatus {
+  draft
+  confirmed
+  in_progress
+  done
+  cancelled
+}
+
+enum SignalSourceType {
+  carpenter
+  contractor
+  dealer
+  supplier
+  warehouse_partner
+  transporter
+  employee
+  procurement_partner
+}
+
+enum SignalType {
+  shortage
+  price_change
+  delay
+  availability
+}
+
+enum AuditAction {
+  created
+  updated
+  deleted
+}
+
+enum CommunicationChannel {
+  email
+  sms
+  portal_message
+}
+
+enum CommunicationDirection {
+  inbound
+  outbound
+}
+
+// Entity types that can appear in a ProcurementLink chain.
+enum LinkEntityType {
+  sales_order
+  purchase_order
+  manufacturing_order
+}
+
+// ---------- IntelHub (procurement intelligence network) ----------
+
+enum IntelPostType {
+  new_supplier
+  cheaper_supplier
+  better_quality
+  faster_delivery
+  bulk_discount
+  local_supplier
+  alternative_material
+  excess_stock
+}
+
+// "expired" is deliberately NOT a value here — same pattern as "late" on
+// Sales/Purchase/Manufacturing Orders elsewhere in this schema: it's a
+// derived state (expiresAt < now), computed at query time, never a stored
+// value a cron job has to remember to flip.
+enum IntelPostStatus {
+  pending
+  verified
+  rejected
+}
+
+// ---------- Internal users & permissions ----------
+
+model User {
+  id           Int      @id @default(autoincrement())
+  loginId      String   @unique
+  email        String   @unique
+  passwordHash String
+  name         String
+  address      String?
+  mobile       String?
+  position     String?
+  photoUrl     String?
+  isAdmin      Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  // Reputation points awarded by an admin after offline-confirming a tip was
+  // genuinely useful (e.g. the supplier was real, the price held up) — never
+  // auto-awarded just for posting, so the leaderboard can't be farmed by spam.
+  intelStars   Int      @default(0)
+
+  permissions                  Permission[]
+  salesOrdersAsSalesperson     SalesOrder[]         @relation("SalesPerson")
+  purchaseOrdersAsResponsible  PurchaseOrder[]      @relation("ResponsiblePerson")
+  manufacturingOrdersAsAssignee ManufacturingOrder[] @relation("Assignee")
+  auditLogs                    AuditLog[]
+  marketSignals                MarketSignal[]
+  stockLedgerEntries           StockLedger[]
+  passwordResetTokens           PasswordResetToken[]
+  intelPosts                   IntelPost[]          @relation("IntelPostAuthor")
+  intelPostsVerified           IntelPost[]          @relation("IntelPostVerifier")
+  intelHubView                 IntelHubView?
+
+  @@map("users")
+}
+
+// One-time tokens emailed to a user's account email for the "Forgot
+// Password" flow. Only the sha256 hash is stored — the raw token (the
+// part embedded in the emailed link) never touches the database.
+model PasswordResetToken {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("password_reset_tokens")
+}
+
+// One row per (user, module, field) — the granular Admin/User permission grid
+// from the wireframe. canCreate/canView/canEdit/canDelete are independent booleans.
+model Permission {
+  id        Int              @id @default(autoincrement())
+  userId    Int
+  module    PermissionModule
+  field     String
+  canCreate Boolean          @default(false)
+  canView   Boolean          @default(false)
+  canEdit   Boolean          @default(false)
+  canDelete Boolean          @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, module, field])
+  @@map("permissions")
+}
+
+// ---------- External customers (Tier A portal) ----------
+
+model Customer {
+  id           Int      @id @default(autoincrement())
+  name         String
+  email        String?  @unique
+  passwordHash String?
+  phone        String?
+  address      String?
+  createdAt    DateTime @default(now())
+
+  salesOrders    SalesOrder[]
+  communications CustomerCommunication[]
+  reviews        CustomerReview[]
+
+  @@map("customers")
+}
+
+// ---------- Vendors ----------
+
+model Vendor {
+  id        Int      @id @default(autoincrement())
+  reference String   @unique
+  name      String
+  address   String?
+  contact   String?
+  createdAt DateTime @default(now())
+
+  purchaseOrders   PurchaseOrder[]
+  qualityIncidents VendorQualityIncident[]
+  preferredFor     Product[]               @relation("ProductPreferredVendor")
+  offers           VendorOffer[]
+
+  @@map("vendors")
+}
+
+// Per-vendor price/lead-time quote for a product — what PIN's VENDOR_SWITCH
+// and EXPEDITE recommendations compute their cost/time impact from. Without
+// this, "switch to Vendor B" would have no real number to show, only a label.
+model VendorOffer {
+  id                Int      @id @default(autoincrement())
+  vendorId          Int
+  productId         Int
+  unitPrice         Decimal  @db.Decimal(12, 2)
+  leadTimeDays      Int
+  expediteAvailable Boolean  @default(false)
+  expediteFee       Decimal? @db.Decimal(12, 2)
+  expediteLeadDays  Int?
+  createdAt         DateTime @default(now())
+
+  vendor  Vendor  @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([vendorId, productId])
+  @@map("vendor_offers")
+}
+
+model VendorQualityIncident {
+  id          Int      @id @default(autoincrement())
+  vendorId    Int
+  description String
+  severity    Severity
+  createdAt   DateTime @default(now())
+
+  vendor Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@map("vendor_quality_incidents")
+}
+
+// ---------- Products (the central inventory model) ----------
+
+model Product {
+  id                Int                @id @default(autoincrement())
+  reference         String             @unique
+  name              String
+  dimensions        String?
+  specifications    String?
+  leadTimeDays      Int?
+  movementRate      Float?
+  minOrderQty       Decimal?           @db.Decimal(12, 2)
+  lowStockThreshold Decimal?           @db.Decimal(12, 2)
+  salesPrice        Decimal            @db.Decimal(12, 2)
+  costPrice         Decimal            @db.Decimal(12, 2)
+  onHandQty         Decimal            @default(0) @db.Decimal(12, 2)
+  procureOnDemand   Boolean            @default(false)
+  procurementMethod ProcurementMethod?
+  vendorId          Int?
+  bomId             Int?
+  photoUrl          String?
+  createdAt         DateTime           @default(now())
+
+  // Procure-on-demand configuration: which vendor/BoM to use when auto-replenishing this product.
+  vendor Vendor? @relation("ProductPreferredVendor", fields: [vendorId], references: [id])
+  bom    Bom?    @relation("ProductProcureBom", fields: [bomId], references: [id])
+
+  // BoMs that produce THIS product as their finished good (distinct from the relation above).
+  bomsAsFinishedProduct               Bom[]                @relation("BomFinishedProduct")
+  bomLinesAsComponent                 BomLine[]            @relation("BomLineComponent")
+  salesOrderLines                     SalesOrderLine[]
+  purchaseOrderLines                  PurchaseOrderLine[]
+  manufacturingOrdersAsFinishedProduct ManufacturingOrder[] @relation("MoFinishedProduct")
+  moComponents                        MoComponent[]
+  stockLedgerEntries                  StockLedger[]
+  marketSignals                       MarketSignal[]
+  vendorOffers                        VendorOffer[]
+
+  @@map("products")
+}
+
+// ---------- Bill of Materials ----------
+
+model Bom {
+  id        Int      @id @default(autoincrement())
+  reference String   @unique
+  // Free-text field distinct from the auto-generated `reference` above —
+  // matches the wireframe's separate "Reference" input on the BoM form
+  // (max 8 chars, user-entered, e.g. an external/legacy part code).
+  shortReference String?  @db.VarChar(8)
+  productId      Int
+  quantity       Decimal  @db.Decimal(12, 2)
+  createdAt      DateTime @default(now())
+
+  product             Product                @relation("BomFinishedProduct", fields: [productId], references: [id])
+  components          BomLine[]
+  workOrderTemplates  BomWorkOrderTemplate[]
+  procureForProducts  Product[]              @relation("ProductProcureBom")
+  manufacturingOrders ManufacturingOrder[]
+
+  @@map("boms")
+}
+
+model BomLine {
+  id           Int     @id @default(autoincrement())
+  bomId        Int
+  componentId  Int
+  toConsumeQty Decimal @db.Decimal(12, 2)
+
+  bom       Bom     @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  component Product @relation("BomLineComponent", fields: [componentId], references: [id])
+
+  @@map("bom_lines")
+}
+
+model BomWorkOrderTemplate {
+  id                   Int    @id @default(autoincrement())
+  bomId                Int
+  operation            String
+  workCenterId         Int
+  expectedDurationMins Int
+
+  bom        Bom        @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  workCenter WorkCenter @relation(fields: [workCenterId], references: [id])
+
+  @@map("bom_work_order_templates")
+}
+
+model WorkCenter {
+  id                Int    @id @default(autoincrement())
+  name              String
+  shiftCapacityMins Int
+
+  bomWorkOrderTemplates BomWorkOrderTemplate[]
+  moWorkOrders          MoWorkOrder[]
+
+  @@map("work_centers")
+}
+
+// ---------- Sales ----------
+
+model SalesOrder {
+  id              Int              @id @default(autoincrement())
+  reference       String           @unique
+  customerId      Int
+  customerAddress String?
+  salesPersonId   Int?
+  dueDate         DateTime?
+  status          SalesOrderStatus @default(draft)
+  createdAt       DateTime         @default(now())
+  // Set at confirm time from the same lead-time math the procurement engine
+  // already uses, adjusted by any PIN EXPEDITE/VENDOR_SWITCH action applied —
+  // never a separately-fabricated estimate.
+  estimatedDeliveryAt DateTime?
+
+  customer    Customer         @relation(fields: [customerId], references: [id])
+  salesPerson User?            @relation("SalesPerson", fields: [salesPersonId], references: [id])
+  lines       SalesOrderLine[]
+  reviews     CustomerReview[]
+
+  @@map("sales_orders")
+}
+
+model SalesOrderLine {
+  id             Int     @id @default(autoincrement())
+  salesOrderId   Int
+  productId      Int
+  orderedQty     Decimal @db.Decimal(12, 2)
+  deliveredQty   Decimal @default(0) @db.Decimal(12, 2)
+  salesUnitPrice Decimal @db.Decimal(12, 2)
+
+  salesOrder SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  product    Product    @relation(fields: [productId], references: [id])
+
+  @@map("sales_order_lines")
+}
+
+// ---------- Purchase ----------
+
+model PurchaseOrder {
+  id                  Int                 @id @default(autoincrement())
+  reference           String              @unique
+  vendorId            Int
+  vendorAddress       String?
+  responsiblePersonId Int?
+  dueDate             DateTime?
+  status              PurchaseOrderStatus @default(draft)
+  createdAt           DateTime            @default(now())
+
+  vendor            Vendor              @relation(fields: [vendorId], references: [id])
+  responsiblePerson User?               @relation("ResponsiblePerson", fields: [responsiblePersonId], references: [id])
+  lines             PurchaseOrderLine[]
+
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderLine {
+  id              Int     @id @default(autoincrement())
+  purchaseOrderId Int
+  productId       Int
+  orderedQty      Decimal @db.Decimal(12, 2)
+  receivedQty     Decimal @default(0) @db.Decimal(12, 2)
+  costUnitPrice   Decimal @db.Decimal(12, 2)
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  product       Product       @relation(fields: [productId], references: [id])
+
+  @@map("purchase_order_lines")
+}
+
+// ---------- Manufacturing ----------
+
+model ManufacturingOrder {
+  id                Int                      @id @default(autoincrement())
+  reference         String                   @unique
+  finishedProductId Int
+  quantity          Decimal                  @db.Decimal(12, 2)
+  bomId             Int?
+  scheduleDate      DateTime?
+  assigneeId        Int?
+  status            ManufacturingOrderStatus @default(draft)
+  createdAt         DateTime                 @default(now())
+
+  finishedProduct Product       @relation("MoFinishedProduct", fields: [finishedProductId], references: [id])
+  bom             Bom?          @relation(fields: [bomId], references: [id])
+  assignee        User?         @relation("Assignee", fields: [assigneeId], references: [id])
+  components      MoComponent[]
+  workOrders      MoWorkOrder[]
+
+  @@map("manufacturing_orders")
+}
+
+model MoComponent {
+  id                   Int     @id @default(autoincrement())
+  manufacturingOrderId Int
+  productId            Int
+  toConsumeQty         Decimal @db.Decimal(12, 2)
+  consumedQty          Decimal @default(0) @db.Decimal(12, 2)
+
+  manufacturingOrder ManufacturingOrder @relation(fields: [manufacturingOrderId], references: [id], onDelete: Cascade)
+  product            Product            @relation(fields: [productId], references: [id])
+
+  @@map("mo_components")
+}
+
+model MoWorkOrder {
+  id                   Int     @id @default(autoincrement())
+  manufacturingOrderId Int
+  operation            String
+  workCenterId         Int
+  expectedDurationMins Int
+  realDurationMins     Int?
+
+  manufacturingOrder ManufacturingOrder @relation(fields: [manufacturingOrderId], references: [id], onDelete: Cascade)
+  workCenter         WorkCenter         @relation(fields: [workCenterId], references: [id])
+
+  @@map("mo_work_orders")
+}
+
+// ---------- Stock ledger (the operational audit trail for inventory) ----------
+
+model StockLedger {
+  id        Int      @id @default(autoincrement())
+  productId Int
+  qtyChange Decimal  @db.Decimal(12, 2)
+  refType   String
+  refId     Int
+  reason    String
+  userId    Int?
+  createdAt DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id])
+  user    User?   @relation(fields: [userId], references: [id])
+
+  @@map("stock_ledger")
+}
+
+// ---------- Procurement link graph (Delay Tracer) ----------
+//
+// Direction convention (must stay consistent with the recursive trace query):
+//   `parent` = the entity that must resolve FIRST (the blocker — e.g. a newly
+//              auto-created PO/MO).
+//   `child`  = the entity that is BLOCKED BY the parent (the symptom — e.g. the
+//              Sales Order whose shortage triggered the parent's creation).
+// To answer "why is order X late?": look up the row where child = X, follow its
+// parent, then look up the row where child = that parent, and so on until a row
+// has no parent — that is the root cause.
+model ProcurementLink {
+  id         Int            @id @default(autoincrement())
+  parentType LinkEntityType
+  parentId   Int
+  childType  LinkEntityType
+  childId    Int
+  reason     String
+  createdAt  DateTime       @default(now())
+
+  @@index([childType, childId])
+  @@map("procurement_links")
+}
+
+// ---------- Market Signals (Procurement Intelligence Network) ----------
+
+model MarketSignal {
+  id               Int              @id @default(autoincrement())
+  sourceType       SignalSourceType
+  productId        Int?
+  category         String?
+  signalType       SignalType
+  description      String
+  severity         Severity
+  reportedByUserId Int
+  reportedAt       DateTime         @default(now())
+  // Hard cutoff: once passed, the signal stops appearing in the PIN
+  // checkpoint at all. Distinct from the confidence engine's 7-day age
+  // penalty, which degrades trust on a signal that is still active.
+  expiresAt        DateTime?
+
+  product        Product? @relation(fields: [productId], references: [id])
+  reportedByUser User     @relation(fields: [reportedByUserId], references: [id])
+
+  @@map("market_signals")
+}
+
+// ---------- IntelHub ----------
+//
+// A separate procurement-intelligence feed, distinct from MarketSignal:
+// MarketSignal is "what's happening that might cause a delay" (risk,
+// surfaced to PIN's checkpoint). IntelPost is "here's a useful lead I found"
+// (opportunity — a cheaper/faster/better vendor, surfaced to humans browsing
+// the feed). Different shape, different audience, deliberately not merged.
+
+model IntelPost {
+  id              Int             @id @default(autoincrement())
+  title           String
+  description     String
+  postType        IntelPostType
+  materialName    String
+  supplierName    String
+  location        String?
+  price           Decimal?        @db.Decimal(12, 2)
+  quantity        Decimal?        @db.Decimal(12, 2)
+  contactInfo     String?
+  status          IntelPostStatus @default(pending)
+  starsAwarded    Int             @default(0)
+  // Optional — most posts never set this and just stay pending/verified/
+  // rejected forever; useful for a literal "this offer is only good for 7
+  // days" tip. Expiry is computed at read time (expiresAt < now), never a
+  // stored status, so nothing ever has to remember to flip it.
+  expiresAt       DateTime?
+  createdByUserId Int
+  verifiedByUserId Int?
+  verifiedAt      DateTime?
+  createdAt       DateTime        @default(now())
+
+  createdBy  User  @relation("IntelPostAuthor", fields: [createdByUserId], references: [id])
+  verifiedBy User? @relation("IntelPostVerifier", fields: [verifiedByUserId], references: [id])
+
+  @@index([status])
+  @@map("intel_posts")
+}
+
+// One row per user, tracking the last time they opened the IntelHub feed —
+// this is what "unread post count" / the sidebar red dot is computed from
+// (posts created after lastViewedAt), rather than a per-post-per-user
+// read-flag table, which would be a row explosion for no real benefit here.
+model IntelHubView {
+  userId       Int      @id
+  lastViewedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("intel_hub_views")
+}
+
+// ---------- Audit Logs ----------
+
+model AuditLog {
+  id           Int               @id @default(autoincrement())
+  module       PermissionModule
+  entity       String
+  recordId     Int
+  recordRef    String?
+  action       AuditAction
+  fieldChanged String?
+  oldValue     String?
+  newValue     String?
+  userId       Int?
+  createdAt    DateTime          @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([entity, recordId])
+  @@index([module])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ---------- Customer portal support tables ----------
+
+model CustomerCommunication {
+  id         Int                    @id @default(autoincrement())
+  customerId Int
+  channel    CommunicationChannel
+  direction  CommunicationDirection
+  message    String
+  createdAt  DateTime               @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@map("customer_communications")
+}
+
+model CustomerReview {
+  id           Int      @id @default(autoincrement())
+  customerId   Int
+  salesOrderId Int
+  rating       Int
+  comment      String?
+  createdAt    DateTime @default(now())
+
+  customer   Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  salesOrder SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+
+  @@map("customer_reviews")
+}

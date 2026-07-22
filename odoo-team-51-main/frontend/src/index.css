@@ -1,0 +1,248 @@
+@import "tailwindcss";
+
+/* ----------------------------------------------------------------------
+ * Theme tokens. `--color-*` is the namespace Tailwind v4 reads to generate
+ * utilities (bg-background, text-foreground, bg-card, border-border, ...).
+ * Previously these were declared as plain `--background` etc. on :root/.dark
+ * with NO `--color-` mapping in @theme — Tailwind never generated those
+ * utility classes at all, so every `bg-card` / `border-border` / `bg-background`
+ * in the app was silently a no-op. That's why dark mode showed transparent
+ * cards/sidebar bleeding into the page background instead of looking layered.
+ * `@theme inline` re-reads the :root/.dark values below on every mode switch.
+ * ---------------------------------------------------------------------- */
+@theme inline {
+  --color-primary: #7c3aed;
+  --color-primary-hover: #6d28d9;
+  --color-primary-foreground: #ffffff;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+  --shadow-soft: 0 4px 20px -2px rgba(0, 0, 0, 0.06);
+  --shadow-floating: 0 12px 40px -8px rgba(0, 0, 0, 0.12);
+}
+
+@layer base {
+  :root {
+    /* Soft off-white, not stark white — easier on the eyes for a business app. */
+    --background: #f7f8fa;
+    --foreground: #111827;
+    --card: #ffffff;
+    --card-foreground: #111827;
+    --secondary: #f1f4f8;
+    --secondary-foreground: #0f172a;
+    --border: #e4e7ec;
+    --muted: #f1f4f8;
+    --muted-foreground: #6b7280;
+
+    /* Tells the browser to render NATIVE widgets (select dropdown popups,
+     * date/time pickers, checkboxes, scrollbars) in this scheme. Without
+     * this, the <option> list of every <select> renders with the browser's
+     * default light popup regardless of our .dark class — text and
+     * background both end up light-on-light and unreadable. This one
+     * property fixes every native dropdown/date-picker in the app at once. */
+    color-scheme: light;
+
+    font-family: var(--font-sans);
+    background-color: var(--background);
+    color: var(--foreground);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  .dark {
+    color-scheme: dark;
+    /* Charcoal/slate, never pure black — keeps card/sidebar layers readable. */
+    --background: #0d1117;
+    --foreground: #e6e8eb;
+    --card: #161b22;
+    --card-foreground: #e6e8eb;
+    --secondary: #1c232e;
+    --secondary-foreground: #e6e8eb;
+    --border: #2a313c;
+    --muted: #1c232e;
+    --muted-foreground: #9aa4b2;
+  }
+
+  * {
+    border-color: var(--border);
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background-color: var(--background);
+    color: var(--foreground);
+    transition: background-color 0.25s ease, color 0.25s ease;
+  }
+
+  /* `color-scheme` alone doesn't reliably theme a <select>'s dropdown
+   * listbox on Windows Chrome — only the calendar/scrollbars. The listbox
+   * popup DOES respect explicit background/color set directly on <option>,
+   * so this is the actual fix for unreadable light-on-light dropdown items. */
+  select, option {
+    background-color: var(--card);
+    color: var(--foreground);
+  }
+
+  /* Typography */
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--foreground);
+  }
+
+  h1 { font-size: 1.5rem; line-height: 2rem; }
+  h2 { font-size: 1.25rem; line-height: 1.75rem; }
+  h3 { font-size: 1.125rem; line-height: 1.75rem; }
+
+  /* Consistent, theme-aware scrollbars instead of the raw browser default. */
+  .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background-color: var(--border);
+    border-radius: 9999px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: var(--muted-foreground); }
+}
+
+@layer components {
+  .card {
+    @apply bg-card text-card-foreground border border-border rounded-xl shadow-soft;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-lg
+      transition-all duration-150 ease-out
+      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary
+      disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none
+      active:scale-[0.98];
+  }
+
+  .btn-primary {
+    @apply bg-primary text-primary-foreground hover:bg-primary-hover border border-transparent shadow-sm;
+  }
+
+  .btn-secondary {
+    @apply bg-card text-foreground hover:bg-secondary border border-border shadow-sm;
+  }
+
+  .btn-ghost {
+    @apply text-foreground/70 hover:text-foreground hover:bg-secondary border border-transparent;
+  }
+
+  .input {
+    @apply block w-full px-3 py-2 text-sm bg-card text-foreground border border-border rounded-lg shadow-sm
+      placeholder:text-muted-foreground
+      transition-all duration-150 ease-out
+      focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary
+      disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-secondary;
+  }
+
+  .label {
+    @apply block text-sm font-medium text-foreground/80 mb-1.5;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border;
+  }
+
+  /* Micro-interactions */
+  .interactive {
+    @apply transition-all duration-150 ease-out hover:-translate-y-px active:translate-y-0;
+  }
+
+  .card-hover {
+    @apply transition-all duration-200 ease-out hover:shadow-floating hover:-translate-y-0.5;
+  }
+
+  /* CTAButton's breathing ring — a pseudo-element so the pulse never affects
+   * layout or the button's own hover scale transform. Paused on hover via
+   * the parent's :hover selector, not JS, per the "CSS only" requirement. */
+  .cta-pulse::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    color: var(--color-primary);
+    box-shadow: 0 0 0 0 currentColor;
+    opacity: 0.5;
+    animation: cta-pulse-ring 2s ease-out infinite;
+    pointer-events: none;
+  }
+  .cta-pulse-secondary::before {
+    color: var(--muted-foreground);
+  }
+  .cta-pulse:hover::before {
+    animation-play-state: paused;
+  }
+
+  /* Loading skeleton — replaces ad-hoc "Loading..." text with a shape that
+   * matches the content about to render, theme-aware in both modes. */
+  .skeleton {
+    @apply relative overflow-hidden bg-secondary rounded-md;
+  }
+  .skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background-image: linear-gradient(90deg, transparent, color-mix(in srgb, var(--foreground) 6%, transparent), transparent);
+    animation: skeleton-shimmer 1.6s ease-in-out infinite;
+  }
+}
+
+/* Utilities for the layout */
+@layer utilities {
+  .blur-nav {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    background-color: color-mix(in srgb, var(--card) 85%, transparent);
+  }
+
+  /* Minimal animate-in vocabulary matching the class names already used
+   * across modals/pages (animate-in fade-in zoom-in-95 slide-in-from-*
+   * duration-200 etc.) — these previously resolved to nothing because no
+   * animation plugin was installed, so every "entrance" was instant/invisible. */
+  .animate-in { animation-duration: 200ms; animation-timing-function: ease-out; animation-fill-mode: both; }
+  .fade-in { animation-name: fade-in; }
+  .zoom-in-95 { animation-name: zoom-in-95; }
+  .slide-in-from-bottom-2 { animation-name: slide-in-from-bottom-2; }
+  .slide-in-from-top-2 { animation-name: slide-in-from-top-2; }
+  .duration-150 { animation-duration: 150ms; }
+  .duration-200 { animation-duration: 200ms; }
+  .duration-300 { animation-duration: 300ms; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes zoom-in-95 {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes slide-in-from-bottom-2 {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes slide-in-from-top-2 {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes skeleton-shimmer {
+  100% { transform: translateX(100%); }
+}
+@keyframes cta-pulse-ring {
+  0% { box-shadow: 0 0 0 0 currentColor; opacity: 0.45; }
+  100% { box-shadow: 0 0 0 12px currentColor; opacity: 0; }
+}
